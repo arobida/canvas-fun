@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<title>HTML5 Canvas</title>
+	</head>
+	<body>
+		<h1 id="header">Start Drawing!</h1>
+		<canvas id="draw"></canvas>
+		<script>
+			const canvas = document.querySelector('#draw');
+			const ctx = canvas.getContext('2d');
+			canvas.width = window.innerWidth;
+			canvas.height = window.innerHeight;
+			ctx.strokeStyle = '#BADA55';
+			ctx.lineJoin = 'round';
+			ctx.lineCap = 'round';
+			ctx.lineWidth = '100';
+			ctx.globalCompositeOperation = 'lighten';
+
+			let isDrawing = false;
+			let lastX = 0;
+			let lastY = 0;
+			let hue = 0;
+			let direction = true;
+
+			function draw(e) {
+				// stop draw when the mouse is not clicked down
+				if (!isDrawing) return;
+				console.log(e);
+				ctx.strokeStyle = `hsl(${hue},100%,50%)`;
+				ctx.beginPath();
+				ctx.moveTo(lastX, lastY);
+				ctx.lineTo(e.offsetX, e.offsetY);
+				ctx.stroke();
+				[lastX, lastY] = [e.offsetX, e.offsetY];
+			}
+
+			canvas.addEventListener('mousedown', e => {
+				isDrawing = true;
+				[lastX, lastY] = [e.offsetX, e.offsetY];
+				hue++;
+			});
+
+			canvas.addEventListener('mousemove', e => {
+				draw(e);
+				hue++;
+				if (hue >= 360) {
+					return (hue = 0);
+				}
+				if (ctx.lineWidth >= 100 || ctx.lineWidth <= 1) {
+					direction = !direction;
+				}
+				if (direction) {
+					ctx.lineWidth++;
+				} else {
+					ctx.lineWidth--;
+				}
+			});
+			canvas.addEventListener('mouseup', () => (isDrawing = false));
+			canvas.addEventListener('mouseout', () => (isDrawing = false));
+
+			// for touch events
+			canvas.addEventListener('touchstart', handleStart, false);
+			canvas.addEventListener('touchend', handleEnd, false);
+			canvas.addEventListener('touchcancel', handleCancel, false);
+			canvas.addEventListener('touchmove', handleMove, false);
+			// touch tracker
+			var ongoingTouches = [];
+			// touch handlers
+			function handleStart(evt) {
+				evt.preventDefault();
+				console.log('touchstart.');
+				var touches = evt.changedTouches;
+
+				for (var i = 0; i < touches.length; i++) {
+					console.log('touchstart:' + i + '...');
+					ongoingTouches.push(copyTouch(touches[i]));
+					var color = colorForTouch(touches[i]);
+					ctx.beginPath();
+					ctx.fillStyle = `hsl(${color},100%,50%)`;
+					console.log('touchstart:' + i + '.');
+				}
+			}
+
+			function handleMove(evt) {
+				evt.preventDefault();
+				var touches = evt.changedTouches;
+
+				for (var i = 0; i < touches.length; i++) {
+					var color = colorForTouch(touches[i]);
+					var idx = ongoingTouchIndexById(touches[i].identifier);
+
+					if (idx >= 0) {
+						console.log('continuing touch ' + idx);
+						ctx.beginPath();
+						console.log(
+							'ctx.moveTo(' +
+								ongoingTouches[idx].pageX +
+								', ' +
+								ongoingTouches[idx].pageY +
+								');'
+						);
+						ctx.moveTo(ongoingTouches[idx].pageX, ongoingTouches[idx].pageY);
+						console.log(
+							'ctx.lineTo(' + touches[i].pageX + ', ' + touches[i].pageY + ');'
+						);
+						ctx.lineTo(touches[i].pageX, touches[i].pageY);
+						ctx.strokeStyle = `hsl(${color},100%,50%)`;
+						ctx.stroke();
+
+						hue++;
+						if (hue >= 360) {
+							return (hue = 0);
+						}
+						if (ctx.lineWidth >= 100 || ctx.lineWidth <= 1) {
+							direction = !direction;
+						}
+						if (direction) {
+							ctx.lineWidth++;
+						} else {
+							ctx.lineWidth--;
+						}
+
+						ongoingTouches.splice(idx, 1, copyTouch(touches[i])); // swap in the new touch record
+						console.log('.');
+					} else {
+						console.log("can't figure out which touch to continue");
+					}
+				}
+			}
+
+			function handleEnd(evt) {
+				evt.preventDefault();
+				var touches = evt.changedTouches;
+
+				for (var i = 0; i < touches.length; i++) {
+					var color = colorForTouch(touches[i]);
+					var idx = ongoingTouchIndexById(touches[i].identifier);
+
+					if (idx >= 0) {
+						ctx.beginPath();
+						ctx.fillStyle = `hsl(${color},100%,50%)`;
+						ctx.moveTo(ongoingTouches[idx].pageX, ongoingTouches[idx].pageY);
+						ctx.lineTo(touches[i].pageX, touches[i].pageY);
+						ongoingTouches.splice(idx, 1); // remove it; we're done
+					} else {
+						console.log("can't figure out which touch to end");
+					}
+				}
+			}
+
+			function handleCancel(evt) {
+				evt.preventDefault();
+				console.log('touchcancel.');
+				var touches = evt.changedTouches;
+
+				for (var i = 0; i < touches.length; i++) {
+					var idx = ongoingTouchIndexById(touches[i].identifier);
+					ongoingTouches.splice(idx, 1); // remove it; we're done
+				}
+			}
+
+			function colorForTouch(touch) {
+				hue++;
+				console.log(
+					'color for touch with identifier ' + touch.identifier + ' = ' + hue
+				);
+				return hue;
+			}
+
+			function copyTouch(touch) {
+				return {
+					identifier: touch.identifier,
+					pageX: touch.pageX,
+					pageY: touch.pageY
+				};
+			}
+
+			function ongoingTouchIndexById(idToFind) {
+				for (var i = 0; i < ongoingTouches.length; i++) {
+					var id = ongoingTouches[i].identifier;
+
+					if (id == idToFind) {
+						return i;
+					}
+				}
+				return -1; // not found
+			}
+
+		</script>
+
+		<style>
+			html,
+			body {
+				margin: 0;
+			}
+			#header {
+				color: #bada55;
+				margin-left: 40%;
+			}
+			#draw {
+				width: 100%;
+				height: 400;
+			}
+		</style>
+	</body>
+</html>
